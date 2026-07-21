@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sensor Detail View - Zirconia Oxygen Sensor Digital Twin">
+    <title>Sensor Detail — Digital Twin</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- ═══ Header ═══════════════════════════════════════════════ -->
+    <header class="header">
+        <div class="header-brand">
+            <div class="header-logo">DT</div>
+            <div>
+                <div class="header-title">Sensor Detail View</div>
+                <div class="header-subtitle">Zirconia Oxygen Sensor — Full Telemetry</div>
+            </div>
+        </div>
+        <div class="header-status">
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDotDetail"></div>
+                <span id="statusTextDetail">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══ Navigation ═══════════════════════════════════════════ -->
+    <nav class="nav-tabs">
+        <a class="nav-tab" href="/">Dashboard</a>
+        <a class="nav-tab active" href="/sensor-detail">Sensor Detail</a>
+    </nav>
+
+    <!-- ═══ Main Content ═════════════════════════════════════════ -->
+    <main class="main-content">
+
+        <!-- ─── All Sensor Values Table ──────────────────────── -->
+        <div class="card animate-in">
+            <div class="card-header">
+                <span class="card-title">Complete Sensor Telemetry</span>
+                <span class="section-badge">REAL-TIME</span>
+            </div>
+            <table class="data-table" id="sensorTable">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                        <th>Unit</th>
+                        <th>Range</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="sensorTableBody">
+                    <tr><td>Loading...</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ─── Extended Charts ──────────────────────────────── -->
+        <div class="grid-2">
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Oxygen Concentration</span>
+                    <span class="section-badge">60s</span>
+                </div>
+                <div class="chart-container large">
+                    <canvas id="sensorOxygenChart"></canvas>
+                </div>
+            </div>
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Voltage & Current</span>
+                    <span class="section-badge">60s</span>
+                </div>
+                <div class="chart-container large">
+                    <canvas id="sensorVoltageChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Temperature</span>
+                    <span class="section-badge">60s</span>
+                </div>
+                <div class="chart-container large">
+                    <canvas id="sensorTempChart"></canvas>
+                </div>
+            </div>
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Pressure & Humidity</span>
+                    <span class="section-badge">60s</span>
+                </div>
+                <div class="chart-container large">
+                    <canvas id="sensorPressureChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="footer">
+        Digital Twin — Sensor Detail • Raw telemetry data and extended charts
+    </footer>
+</div>
+
+<script>
+    // ── Chart Setup ─────────────────────────────────────────────
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.05)';
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    const MAX_PTS = 120;
+    const sCharts = {};
+
+    function makeChart(id, label, color, yLabel) {
+        const ctx = document.getElementById(id);
+        if (!ctx) return null;
+        return new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [{
+                label, data: [],
+                borderColor: color,
+                backgroundColor: color.replace('1)', '0.1)'),
+                fill: true, pointRadius: 0, tension: 0.3, borderWidth: 2
+            }]},
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { display: true, grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+                    y: { grid: { color: 'rgba(255,255,255,0.03)' }, title: { display: true, text: yLabel, color: '#64748b', font: { size: 10 } } }
+                },
+                plugins: { tooltip: { backgroundColor: 'rgba(17,24,39,0.95)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 8 } },
+                elements: { point: { radius: 0, hoverRadius: 4 } }
+            }
+        });
+    }
+
+    function makeMultiChart(id, datasets, yLabel) {
+        const ctx = document.getElementById(id);
+        if (!ctx) return null;
+        return new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: datasets.map(d => ({
+                label: d.label, data: [],
+                borderColor: d.color,
+                backgroundColor: d.color.replace('1)', '0.1)'),
+                fill: false, pointRadius: 0, tension: 0.3, borderWidth: 2
+            }))},
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 12, padding: 15, font: { size: 10 } } } },
+                scales: {
+                    x: { display: true, grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+                    y: { grid: { color: 'rgba(255,255,255,0.03)' }, title: { display: true, text: yLabel, color: '#64748b', font: { size: 10 } } }
+                },
+                elements: { point: { radius: 0, hoverRadius: 4 } }
+            }
+        });
+    }
+
+    function initSensorCharts() {
+        sCharts.oxygen = makeChart('sensorOxygenChart', 'O₂', 'rgba(6, 182, 212, 1)', 'O₂ %');
+        sCharts.voltage = makeMultiChart('sensorVoltageChart', [
+            { label: 'Voltage (V)', color: 'rgba(59, 130, 246, 1)' },
+            { label: 'Current (A)', color: 'rgba(139, 92, 246, 1)' }
+        ], 'V / A');
+        sCharts.temp = makeChart('sensorTempChart', 'Temperature', 'rgba(245, 158, 11, 1)', '°C');
+        sCharts.pressure = makeMultiChart('sensorPressureChart', [
+            { label: 'Pressure (psi)', color: 'rgba(99, 102, 241, 1)' },
+            { label: 'Humidity (%)', color: 'rgba(16, 185, 129, 1)' }
+        ], 'psi / %');
+    }
+
+    function addPt(chart, label, ...values) {
+        if (!chart) return;
+        chart.data.labels.push(label);
+        values.forEach((v, i) => { if (chart.data.datasets[i]) chart.data.datasets[i].data.push(v); });
+        if (chart.data.labels.length > MAX_PTS) { chart.data.labels.shift(); chart.data.datasets.forEach(d => d.data.shift()); }
+        chart.update('none');
+    }
+
+    // ── Sensor Parameters ───────────────────────────────────────
+    const PARAMS = [
+        { key: 'oxygen', label: 'Oxygen', unit: '%', range: '0 – 100', warn: v => v < 85 },
+        { key: 'temperature', label: 'Temperature', unit: '°C', range: '600 – 800' },
+        { key: 'pressure', label: 'Pressure', unit: 'psi', range: '20 – 40' },
+        { key: 'flow', label: 'Flow Rate', unit: 'L/min', range: '5 – 20' },
+        { key: 'humidity', label: 'Humidity', unit: '%', range: '0 – 50' },
+        { key: 'voltage', label: 'Voltage', unit: 'V', range: '0 – 1.2', warn: v => v < 0.6 },
+        { key: 'current', label: 'Current', unit: 'A', range: '0 – 0.5' },
+        { key: 'heater_temp', label: 'Heater Temp', unit: '°C', range: '600 – 800', warn: v => v < 600 },
+        { key: 'vibration', label: 'Vibration', unit: 'g', range: '0 – 5' },
+        { key: 'altitude', label: 'Altitude', unit: 'ft', range: '0 – 50,000' },
+        { key: 'flight_hours', label: 'Flight Hours', unit: 'hrs', range: '0 – 5,000' },
+        { key: 'thermal_cycles', label: 'Thermal Cycles', unit: '', range: '0 – ∞' },
+    ];
+
+    function updateTable(sensor) {
+        const tbody = document.getElementById('sensorTableBody');
+        if (!tbody || !sensor) return;
+        tbody.innerHTML = PARAMS.map(p => {
+            const val = sensor[p.key];
+            const formatted = val !== undefined ? (typeof val === 'number' ? val.toFixed(3) : val) : '--';
+            const isWarn = p.warn && p.warn(val);
+            return `<tr>
+                <td>${p.label}</td>
+                <td style="color: ${isWarn ? '#f43f5e' : '#f1f5f9'}">${formatted}</td>
+                <td>${p.unit}</td>
+                <td>${p.range}</td>
+                <td><span class="badge ${isWarn ? 'poor' : 'good'}">${isWarn ? 'WARNING' : 'OK'}</span></td>
+            </tr>`;
+        }).join('');
+    }
+
+    // ── Polling ─────────────────────────────────────────────────
+    async function fetchSensor() {
+        try {
+            const res = await fetch('/api/sensor/live');
+            const json = await res.json();
+            const dot = document.getElementById('statusDotDetail');
+            const txt = document.getElementById('statusTextDetail');
+
+            if (json.status === 'ok' && json.data) {
+                if (dot) dot.className = 'status-dot';
+                if (txt) txt.textContent = 'Live';
+
+                const s = json.data;
+                updateTable(s);
+
+                const t = s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-US', { hour12: false }) : '';
+                addPt(sCharts.oxygen, t, s.oxygen);
+                addPt(sCharts.voltage, t, s.voltage, s.current);
+                addPt(sCharts.temp, t, s.heater_temp || s.temperature);
+                addPt(sCharts.pressure, t, s.pressure, s.humidity);
+            } else {
+                if (dot) dot.className = 'status-dot critical';
+                if (txt) txt.textContent = 'No Data';
+            }
+        } catch (e) {
+            const dot = document.getElementById('statusDotDetail');
+            const txt = document.getElementById('statusTextDetail');
+            if (dot) dot.className = 'status-dot critical';
+            if (txt) txt.textContent = 'Disconnected';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initSensorCharts();
+        fetchSensor();
+        setInterval(fetchSensor, 1000);
+    });
+</script>
+
+</body>
+</html>

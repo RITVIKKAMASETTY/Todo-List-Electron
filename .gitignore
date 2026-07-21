@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+
+# Virtual Environment
+venv/
+env/
+.env
+.venv/
+
+# Database (auto-created on first run)
+app/database/twin.db
+*.db
+*.sqlite3
+
+# PyInstaller build output
+build/
+dist/
+*.spec
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+dist/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Generated data
+app/data/*.csv
+
+# Always include GitHub Actions
+!.github/
+!.github/workflows/
+
+# Environment variables
+.env
+.env.local

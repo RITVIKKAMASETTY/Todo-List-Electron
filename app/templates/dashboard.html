@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Digital Twin Dashboard for OBOGS Zirconia Oxygen Sensor - Real-time monitoring, health assessment, and predictive maintenance">
+    <title>Digital Twin — OBOGS Oxygen Sensor</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- ═══ Header ═══════════════════════════════════════════════ -->
+    <header class="header">
+        <div class="header-brand">
+            <div class="header-logo">DT</div>
+            <div>
+                <div class="header-title">Digital Twin — Zirconia O₂ Sensor</div>
+                <div class="header-subtitle">OBOGS Aircraft Oxygen System</div>
+            </div>
+        </div>
+        <div class="header-status">
+            <!-- Flight Phase Indicator -->
+            <div class="flight-phase">
+                <div class="phase-step" id="phase-ground"><div class="phase-step-dot"></div>Ground</div>
+                <div class="phase-connector"></div>
+                <div class="phase-step" id="phase-climb"><div class="phase-step-dot"></div>Climb</div>
+                <div class="phase-connector"></div>
+                <div class="phase-step" id="phase-cruise"><div class="phase-step-dot"></div>Cruise</div>
+                <div class="phase-connector"></div>
+                <div class="phase-step" id="phase-descent"><div class="phase-step-dot"></div>Descent</div>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══ Navigation ═══════════════════════════════════════════ -->
+    <nav class="nav-tabs">
+        <a class="nav-tab active" href="/">Dashboard</a>
+        <a class="nav-tab" href="/sensor-detail">Sensor Detail</a>
+    </nav>
+
+    <!-- ═══ Main Content ═════════════════════════════════════════ -->
+    <main class="main-content">
+
+        <!-- ─── Top Metrics Row ──────────────────────────────── -->
+        <div class="grid-4">
+            <!-- Oxygen -->
+            <div class="card metric-card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Oxygen Concentration</span>
+                    <span class="card-icon">🫁</span>
+                </div>
+                <div class="metric-value" id="oxygenValue">--</div>
+                <div class="metric-label">OBOGS output concentration</div>
+            </div>
+            <!-- Temperature -->
+            <div class="card metric-card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Sensor Temperature</span>
+                    <span class="card-icon">🌡️</span>
+                </div>
+                <div class="metric-value" id="tempValue">--</div>
+                <div class="metric-label">Heater element temperature</div>
+            </div>
+            <!-- Health Score -->
+            <div class="card metric-card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Health Score</span>
+                    <span class="card-icon">💚</span>
+                </div>
+                <div class="health-ring-container">
+                    <div class="health-ring">
+                        <svg viewBox="0 0 150 150">
+                            <circle class="health-ring-bg" cx="75" cy="75" r="65" />
+                            <circle class="health-ring-progress" id="healthRingProgress"
+                                    cx="75" cy="75" r="65"
+                                    stroke-dasharray="408.4" stroke-dashoffset="408.4" />
+                        </svg>
+                        <div class="health-ring-text">
+                            <div class="health-ring-value" id="healthRingValue">--</div>
+                            <div class="health-ring-label" id="healthRingLabel">LOADING</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- RUL -->
+            <div class="card metric-card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Remaining Life</span>
+                    <span class="card-icon">⏳</span>
+                </div>
+                <div class="rul-display">
+                    <div class="rul-value" style="color: var(--accent-cyan);">
+                        <span id="rulValue">--</span>
+                        <span class="rul-unit"> hrs</span>
+                    </div>
+                    <div class="rul-bar">
+                        <div class="rul-bar-fill" id="rulBarFill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="metric-label" style="text-align:center">Hours until replacement</div>
+            </div>
+        </div>
+
+        <!-- ─── Charts Row 1: O2 + Temperature ──────────────── -->
+        <div class="grid-2">
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Oxygen Concentration</span>
+                    <span class="section-badge">LIVE</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="oxygenChart"></canvas>
+                </div>
+            </div>
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Sensor Temperature</span>
+                    <span class="section-badge">LIVE</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="temperatureChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Sensor Readings Grid ─────────────────────────── -->
+        <div class="card animate-in">
+            <div class="card-header">
+                <span class="card-title">Live Sensor Readings</span>
+                <span class="card-icon">📡</span>
+            </div>
+            <div class="sensor-grid">
+                <div class="sensor-item">
+                    <div class="sensor-item-label">Voltage</div>
+                    <div class="sensor-item-value" id="voltageValue">--</div>
+                </div>
+                <div class="sensor-item">
+                    <div class="sensor-item-label">Current</div>
+                    <div class="sensor-item-value" id="currentValue">--</div>
+                </div>
+                <div class="sensor-item">
+                    <div class="sensor-item-label">Pressure</div>
+                    <div class="sensor-item-value" id="pressureValue">--</div>
+                </div>
+                <div class="sensor-item">
+                    <div class="sensor-item-label">Flow Rate</div>
+                    <div class="sensor-item-value" id="flowValue">--</div>
+                </div>
+                <div class="sensor-item">
+                    <div class="sensor-item-label">Humidity</div>
+                    <div class="sensor-item-value" id="humidityValue">--</div>
+                </div>
+                <div class="sensor-item">
+                    <div class="sensor-item-label">Altitude</div>
+                    <div class="sensor-item-value" id="altitudeValue">--</div>
+                </div>
+                <div class="sensor-item">
+                    <div class="sensor-item-label">Heater</div>
+                    <div class="sensor-item-value" id="heaterTempValue">--</div>
+                </div>
+                <div class="sensor-item">
+                    <div class="sensor-item-label">Vibration</div>
+                    <div class="sensor-item-value" id="vibrationValue">--</div>
+                </div>
+                <div class="sensor-item">
+                    <div class="sensor-item-label">Flight Hours</div>
+                    <div class="sensor-item-value" id="flightHoursValue">--</div>
+                </div>
+                <div class="sensor-item">
+                    <div class="sensor-item-label">Thermal Cycles</div>
+                    <div class="sensor-item-value" id="thermalCyclesValue">--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Charts Row 2: Health + Voltage/Current ────────── -->
+        <div class="grid-2">
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Health Score History</span>
+                    <span class="section-badge">TREND</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="healthChart"></canvas>
+                </div>
+            </div>
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Voltage & Current</span>
+                    <span class="section-badge">LIVE</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="voltageChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Health Details + Fault Detection + Alerts ──────── -->
+        <div class="grid-3">
+            <!-- Health Components -->
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Health Components</span>
+                    <span class="card-icon">🔬</span>
+                </div>
+                <div class="fault-bars">
+                    <div class="fault-item">
+                        <div class="fault-label">
+                            <span>Drift</span>
+                            <span id="driftValue">--</span>
+                        </div>
+                    </div>
+                    <div class="fault-item">
+                        <div class="fault-label">
+                            <span>Noise RMS</span>
+                            <span id="noiseValue">--</span>
+                        </div>
+                    </div>
+                    <div class="fault-item">
+                        <div class="fault-label">
+                            <span>Aging</span>
+                            <span id="agingValue">--</span>
+                        </div>
+                    </div>
+                    <div class="fault-item">
+                        <div class="fault-label">
+                            <span>Sensitivity</span>
+                            <span id="sensitivityValue">--</span>
+                        </div>
+                    </div>
+                    <div class="fault-item">
+                        <div class="fault-label">
+                            <span>Fault Probability</span>
+                            <span id="faultProbValue">--</span>
+                        </div>
+                        <div class="fault-bar">
+                            <div class="fault-bar-fill" id="faultOverall" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Predictions -->
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">AI Predictions</span>
+                    <span class="card-icon">🧠</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: var(--gap-md);">
+                    <div class="sensor-item">
+                        <div class="sensor-item-label">Predicted O₂</div>
+                        <div class="sensor-item-value" id="predOxygenValue">--</div>
+                    </div>
+                    <div class="sensor-item">
+                        <div class="sensor-item-label">Predicted Temp</div>
+                        <div class="sensor-item-value" id="predTempValue">--</div>
+                    </div>
+                    <div class="sensor-item">
+                        <div class="sensor-item-label">Predicted Health</div>
+                        <div class="sensor-item-value" id="predHealthValue">--</div>
+                    </div>
+                    <div class="sensor-item">
+                        <div class="sensor-item-label">Confidence</div>
+                        <div class="sensor-item-value" id="confidenceValue">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alerts -->
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Alerts</span>
+                    <span class="card-icon">🔔</span>
+                </div>
+                <div class="alert-feed" id="alertFeed">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📡</div>
+                        <div>Waiting for data...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Charts Row 3: Drift + Pressure/Flow ──────────── -->
+        <div class="grid-2">
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Calibration Drift</span>
+                    <span class="section-badge">TREND</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="driftChart"></canvas>
+                </div>
+            </div>
+            <div class="card animate-in">
+                <div class="card-header">
+                    <span class="card-title">Pressure & Flow Rate</span>
+                    <span class="section-badge">LIVE</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="pressureChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Fault Injection (Testing) ────────────────────── -->
+        <div class="card animate-in">
+            <div class="card-header">
+                <span class="card-title">Fault Injection (Testing)</span>
+                <span class="card-icon">⚡</span>
+            </div>
+            <div style="display: flex; gap: var(--gap-sm); flex-wrap: wrap;">
+                <button onclick="Dashboard.injectFault('heater_failure', 0.5)"
+                    style="padding: 8px 16px; background: rgba(244,63,94,0.15); border: 1px solid rgba(244,63,94,0.3); color: #f43f5e; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.8rem; transition: all 0.2s;">
+                    🔥 Heater Failure
+                </button>
+                <button onclick="Dashboard.injectFault('pressure_leak', 0.6)"
+                    style="padding: 8px 16px; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: #f59e0b; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.8rem; transition: all 0.2s;">
+                    💨 Pressure Leak
+                </button>
+                <button onclick="Dashboard.injectFault('sensor_crack', 0.4)"
+                    style="padding: 8px 16px; background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.3); color: #8b5cf6; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.8rem; transition: all 0.2s;">
+                    💔 Sensor Crack
+                </button>
+                <button onclick="Dashboard.injectFault('voltage_drop', 0.5)"
+                    style="padding: 8px 16px; background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); color: #6366f1; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.8rem; transition: all 0.2s;">
+                    ⚡ Voltage Drop
+                </button>
+                <button onclick="Dashboard.injectFault('wiring_fault', 0.7)"
+                    style="padding: 8px 16px; background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.3); color: #06b6d4; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.8rem; transition: all 0.2s;">
+                    🔌 Wiring Fault
+                </button>
+                <button onclick="Dashboard.clearFaults()"
+                    style="padding: 8px 16px; background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); color: #10b981; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.8rem; transition: all 0.2s;">
+                    ✅ Clear All Faults
+                </button>
+            </div>
+            <div style="margin-top: var(--gap-sm); font-size: 0.75rem; color: var(--text-muted);">
+                Total readings: <span id="totalReadingsValue" style="font-family: var(--font-mono);">0</span>
+                &nbsp;•&nbsp;
+                Pipeline ticks: <span id="simTickValue" style="font-family: var(--font-mono);">0</span>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ═══ Footer ═══════════════════════════════════════════════ -->
+    <footer class="footer">
+        Digital Twin — Zirconia Oxygen Sensor (OBOGS) • Real-time Monitoring & Predictive Maintenance
+    </footer>
+
+</div>
+
+<!-- Scripts -->
+<script src="/static/js/charts.js"></script>
+<script src="/static/js/dashboard.js"></script>
+
+</body>
+</html>
