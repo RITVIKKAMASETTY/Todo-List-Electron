@@ -9,7 +9,7 @@ Models the electrical behavior of the zirconia oxygen sensor:
 """
 
 import numpy as np
-from app.config import BOLTZMANN, SENSOR_OPERATING_TEMP_K
+from app.config import BOLTZMANN, SENSOR_OPERATING_TEMP_K, SENSOR_OPERATING_TEMP
 
 
 def impedance_model(temperature_c: float, aging_factor: float = 0.0) -> dict:

@@ -1,11 +1,7 @@
 """
-Calculations Pipeline — Model Orchestrator.
+Calculations Pipeline — Model Orchestrator (Synchronous).
 
-Chains all models in sequence for each sensor reading:
-    Sensor → Physics → Thermal → Aging → Drift → Noise →
-    State Estimation → Fault Detection → Health → RUL → Prediction
-
-Each model enriches the understanding of the sensor's state.
+Chains all models in sequence. No async needed.
 """
 
 from app.models.physics import calculate_physics
@@ -22,13 +18,6 @@ from app.models.prediction import calculate_prediction
 
 
 class DigitalTwinPipeline:
-    """
-    Orchestrates all digital twin models in the correct sequence.
-
-    Maintains history for models that need time-series context
-    (prediction, RUL, trend analysis).
-    """
-
     def __init__(self):
         self.sensor_history = []
         self.health_history = []
@@ -40,33 +29,16 @@ class DigitalTwinPipeline:
         self.tick_count = 0
 
     def process_reading(self, sensor_data: dict) -> dict:
-        """
-        Run the full model pipeline on one sensor reading.
-
-        Args:
-            sensor_data: Raw sensor data dictionary
-
-        Returns:
-            Complete digital twin state dictionary
-        """
         self.tick_count += 1
 
-        # Track voltage history for fault detection
         self.voltage_history.append(sensor_data.get("voltage", 0.82))
         if len(self.voltage_history) > 100:
             self.voltage_history = self.voltage_history[-100:]
 
-        # ── 1. Physics Model ────────────────────────────────────────
-        physics = calculate_physics(sensor_data)
-
-        # ── 2. Thermal Model ────────────────────────────────────────
-        heater_temp = sensor_data.get("heater_temp", 700.0)
-        thermal = calculate_thermal(sensor_data, current_sensor_temp=heater_temp)
-
-        # ── 3. Aging Model ───────────────────────────────────────────
-        aging = calculate_aging(sensor_data)
-
-        # ── 4. Sensor Model ──────────────────────────────────────────
+        physics      = calculate_physics(sensor_data)
+        heater_temp  = sensor_data.get("heater_temp", 700.0)
+        thermal      = calculate_thermal(sensor_data, current_sensor_temp=heater_temp)
+        aging        = calculate_aging(sensor_data)
         sensor_model = calculate_sensor_model(
             sensor_data,
             aging_factor=aging["aging_factor"],
@@ -74,20 +46,14 @@ class DigitalTwinPipeline:
         )
         self.previous_output = sensor_model.get("lagged_voltage")
 
-        # ── 5. Drift Model ───────────────────────────────────────────
         drift = calculate_drift(sensor_data, self.random_walk_state)
         self.random_walk_state = drift.get("random_walk_state", 0.0)
 
-        # ── 6. Noise Model ───────────────────────────────────────────
         noise = calculate_noise(
             aging_factor=aging["aging_factor"],
             signal_level=sensor_data.get("voltage", 0.82)
         )
-
-        # ── 7. State Estimation (EKF) ────────────────────────────────
         state = calculate_state_estimation(sensor_data)
-
-        # ── 8. Fault Detection ───────────────────────────────────────
         fault = calculate_fault(
             sensor_data,
             ideal_voltage=physics["ideal_voltage"],
@@ -96,7 +62,6 @@ class DigitalTwinPipeline:
         )
         self.previous_pressure = sensor_data.get("pressure", 29.0)
 
-        # ── 9. Health Index ──────────────────────────────────────────
         health = calculate_health(
             drift=abs(drift.get("total_drift", 0.0)),
             noise_rms=noise.get("noise_rms", 0.0),
@@ -106,19 +71,16 @@ class DigitalTwinPipeline:
             health_history=self.health_history
         )
 
-        # Track health history
         self.health_history.append(health["health_score"])
         self.health_time_points.append(sensor_data.get("flight_hours", 0.0))
         if len(self.health_history) > 500:
             self.health_history = self.health_history[-500:]
             self.health_time_points = self.health_time_points[-500:]
 
-        # Track sensor history
         self.sensor_history.append(sensor_data)
         if len(self.sensor_history) > 200:
             self.sensor_history = self.sensor_history[-200:]
 
-        # ── 10. RUL Prediction ───────────────────────────────────────
         rul = calculate_rul(
             current_health=health["health_score"],
             flight_hours=sensor_data.get("flight_hours", 0.0),
@@ -126,7 +88,6 @@ class DigitalTwinPipeline:
             time_points=self.health_time_points if len(self.health_time_points) >= 3 else None
         )
 
-        # ── 11. Prediction (every 10 ticks to save CPU) ─────────────
         prediction = None
         if self.tick_count % 10 == 0 and len(self.sensor_history) >= 10:
             prediction = calculate_prediction(
@@ -135,44 +96,37 @@ class DigitalTwinPipeline:
                 n_future=10
             )
 
-        # ── Compile Complete State ───────────────────────────────────
-        result = {
-            "sensor_data": sensor_data,
-            "physics": physics,
-            "thermal": thermal,
-            "aging": aging,
-            "sensor_model": sensor_model,
-            "drift": drift,
-            "noise": noise,
+        return {
+            "sensor_data":    sensor_data,
+            "physics":        physics,
+            "thermal":        thermal,
+            "aging":          aging,
+            "sensor_model":   sensor_model,
+            "drift":          drift,
+            "noise":          noise,
             "state_estimation": state,
-            "fault": fault,
-            "health": health,
-            "rul": rul,
-            "prediction": prediction,
-            "tick": self.tick_count
+            "fault":          fault,
+            "health":         health,
+            "rul":            rul,
+            "prediction":     prediction,
+            "tick":           self.tick_count,
         }
-
-        return result
 
     def get_summary(self) -> dict:
-        """Get a summary of current digital twin state."""
         return {
-            "tick_count": self.tick_count,
-            "data_points": len(self.sensor_history),
+            "tick_count":    self.tick_count,
+            "data_points":   len(self.sensor_history),
             "health_points": len(self.health_history),
             "latest_health": self.health_history[-1] if self.health_history else None,
-            "health_trend": "stable" if len(self.health_history) < 2 else
-                           ("degrading" if self.health_history[-1] < self.health_history[-2]
-                            else "stable")
+            "health_trend":  "stable" if len(self.health_history) < 2 else
+                             ("degrading" if self.health_history[-1] < self.health_history[-2]
+                              else "stable"),
         }
 
 
-# Module-level singleton
 _pipeline = None
 
-
 def get_pipeline() -> DigitalTwinPipeline:
-    """Get or create the singleton pipeline instance."""
     global _pipeline
     if _pipeline is None:
         _pipeline = DigitalTwinPipeline()

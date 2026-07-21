@@ -1,95 +1,53 @@
 """
-Sensor API Router — Endpoints for sensor data operations.
-
-Provides:
-    GET  /api/sensor/live     — Latest sensor reading
-    GET  /api/sensor/history  — Historical readings
-    POST /api/sensor          — Manual data injection
-    GET  /api/sensor/status   — Simulator status
-    POST /api/sensor/fault    — Inject fault for testing
-    POST /api/sensor/clear-faults — Clear injected faults
+Flask Blueprint: Sensor API
+Routes: /api/sensor/*
 """
 
-from fastapi import APIRouter, Query
+from flask import Blueprint, jsonify, request
 from app.database.database import (
-    get_latest_sensor_data, get_sensor_history, insert_sensor_data
+    get_latest_sensor_data, get_sensor_history, get_sensor_count
 )
 from app.services.simulator import get_simulator
 
-router = APIRouter(prefix="/api/sensor", tags=["Sensor"])
+sensor_bp = Blueprint("sensor", __name__)
 
 
-@router.get("/live")
-async def get_live_reading():
-    """Get the most recent sensor reading."""
-    data = await get_latest_sensor_data(limit=1)
-    if data:
-        return {"status": "ok", "data": data[0]}
-    return {"status": "no_data", "data": None}
+@sensor_bp.route("/api/sensor/live")
+def live():
+    rows = get_latest_sensor_data(limit=1)
+    if rows:
+        return jsonify({"status": "ok", "data": rows[0]})
+    return jsonify({"status": "no_data", "data": None})
 
 
-@router.get("/history")
-async def get_history(minutes: int = Query(default=60, ge=1, le=1440)):
-    """
-    Get sensor readings from the last N minutes.
-
-    Args:
-        minutes: Number of minutes of history (1-1440)
-    """
-    data = await get_sensor_history(minutes=minutes)
-    return {"status": "ok", "count": len(data), "data": data}
+@sensor_bp.route("/api/sensor/history")
+def history():
+    minutes = request.args.get("minutes", 60, type=int)
+    rows = get_sensor_history(minutes)
+    return jsonify({"status": "ok", "data": rows, "count": len(rows)})
 
 
-@router.post("")
-async def inject_reading(data: dict):
-    """
-    Manually inject a sensor reading.
-
-    Useful for testing with specific values.
-    """
-    await insert_sensor_data(data)
-    return {"status": "ok", "message": "Reading stored"}
-
-
-@router.get("/status")
-async def get_status():
-    """Get the simulator status."""
+@sensor_bp.route("/api/sensor/status")
+def status():
     sim = get_simulator()
-    return {"status": "ok", "simulator": sim.get_status()}
+    return jsonify({"status": "ok", "simulator": sim.get_status()})
 
 
-@router.post("/fault")
-async def inject_fault(fault_type: str, severity: float = 0.5):
-    """
-    Inject a fault into the simulator for testing.
-
-    Fault types: heater_failure, pressure_leak, sensor_crack,
-                 voltage_drop, wiring_fault
-
-    Args:
-        fault_type: Type of fault to inject
-        severity: Fault severity (0-1)
-    """
+@sensor_bp.route("/api/sensor/fault", methods=["POST", "GET"])
+def inject_fault():
+    fault_type = request.args.get("fault_type", "heater_failure")
+    severity   = request.args.get("severity", 0.5, type=float)
     sim = get_simulator()
-    valid_faults = ["heater_failure", "pressure_leak", "sensor_crack",
-                    "voltage_drop", "wiring_fault"]
-
-    if fault_type not in valid_faults:
-        return {
-            "status": "error",
-            "message": f"Invalid fault type. Valid: {valid_faults}"
-        }
-
-    sim.inject_fault(fault_type, min(max(severity, 0.0), 1.0))
-    return {
+    sim.inject_fault(fault_type, severity)
+    return jsonify({
         "status": "ok",
-        "message": f"Fault '{fault_type}' injected with severity {severity}"
-    }
+        "message": f"Fault '{fault_type}' injected at severity {severity}",
+        "active_faults": list(sim.injected_faults.keys())
+    })
 
 
-@router.post("/clear-faults")
-async def clear_faults():
-    """Clear all injected faults."""
+@sensor_bp.route("/api/sensor/clear-faults", methods=["POST", "GET"])
+def clear_faults():
     sim = get_simulator()
     sim.clear_faults()
-    return {"status": "ok", "message": "All faults cleared"}
+    return jsonify({"status": "ok", "message": "All faults cleared"})
