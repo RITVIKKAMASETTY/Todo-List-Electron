@@ -1,6 +1,6 @@
-# Digital Twin — Zirconia Oxygen Sensor (OBOGS)
+# Digital Twin — Zirconia Oxygen Sensor 
 
-A full-stack **Digital Twin** system for monitoring, simulating, and predicting the health of a **Zirconia Oxygen Sensor** in an **Aircraft On-Board Oxygen Generation System (OBOGS)**.
+A full-stack **Digital Twin** system for monitoring, simulating, and predicting the health of a **Zirconia Oxygen Sensor** in an **Aircraft On-Board Oxygen Generation System**.
 
 ---
 
