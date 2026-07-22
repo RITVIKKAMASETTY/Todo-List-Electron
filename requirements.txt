@@ -1,16 +1,13 @@
 # Flask (minimal dependencies, works fully offline)
-flask==3.1.0
-waitress==3.0.1      # Windows WSGI server (replaces uvicorn, no C compiler needed)
+flask
+waitress
 
-# Scientific Computing (same as before)
-numpy==1.26.4
-scipy==1.13.1
-scikit-learn==1.5.1
-pandas==2.2.2
+# Scientific Computing
+# Versions below have pre-built wheels for Python 3.10, 3.11, 3.12, AND 3.13
+numpy>=1.26
+scipy>=1.14
+scikit-learn>=1.5
+pandas>=2.2
 
-# Packaging
-pyinstaller==6.9.0
-
-# NOTE: sqlite3 is built into Python — no install needed
-# NOTE: threading is built into Python — no install needed
-# NOTE: jinja2 comes with flask — no separate install needed
+# Packaging (only needed to build the .exe)
+pyinstaller
